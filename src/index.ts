@@ -4,12 +4,18 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import mongoose from 'mongoose';
+import http from 'http';
+import { initSocket } from './socket';
 
 // Load env vars
 dotenv.config();
 
 const app: Express = express();
+const server = http.createServer(app);
 const port = process.env.PORT || 5000;
+
+// Init Websockets
+initSocket(server);
 
 // Middleware
 app.use(express.json());
@@ -34,13 +40,17 @@ import authRoutes from './routes/authRoutes';
 import superAdminRoutes from './routes/superAdminRoutes';
 import adminRoutes from './routes/adminRoutes';
 import userRoutes from './routes/userRoutes';
+import notificationRoutes from './routes/notificationRoutes';
+import themeRoutes from './routes/themeRoutes';
 
 app.use('/api/auth', authRoutes);
 app.use('/api/super-admin', superAdminRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/user', userRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/themes', themeRoutes);
 
 // Start Server
-app.listen(port, () => {
+server.listen(port, () => {
     console.log(`🚀 Server is running at http://localhost:${port}`);
 });
