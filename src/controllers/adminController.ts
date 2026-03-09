@@ -322,3 +322,32 @@ export const respondToComplaint = async (req: AuthRequest, res: Response): Promi
         res.status(500).json({ message: error.message });
     }
 };
+
+// ─── CUSTOM EMAIL ─────────────────────────────────────────────────────────────
+
+export const sendCustomEmail = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const { to, subject, message } = req.body;
+
+        if (!to || !subject || !message) {
+            res.status(400).json({ message: 'Receiver, subject and message are required' });
+            return;
+        }
+
+        await sendEmail(
+            to,
+            subject,
+            message,
+            `<div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+                <h2 style="color: #333;">${subject}</h2>
+                <div style="color: #555; line-height: 1.6; white-space: pre-wrap;">${message}</div>
+                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                <small style="color: #999;">Sent via Society Management Admin Portal</small>
+            </div>`
+        );
+
+        res.status(200).json({ message: 'Email sent successfully' });
+    } catch (error: any) {
+        res.status(500).json({ message: error.message });
+    }
+};

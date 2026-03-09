@@ -7,6 +7,7 @@ import {
     getEvents, createEvent, updateEvent, deleteEvent,
     getMaintenanceRecords, addMaintenanceRecord, markMaintenancePaid, sendMaintenanceReminder,
     getComplaints, respondToComplaint,
+    sendCustomEmail,
 } from '../controllers/adminController';
 
 const router = express.Router();
@@ -49,5 +50,6 @@ router.post('/maintenance/:id/remind', sendMaintenanceReminder);
 // Complaints
 router.get('/complaints', getComplaints);
 router.patch('/complaints/:id/respond', respondToComplaint);
+router.post('/send-email', sendCustomEmail);
 
 export default router;
