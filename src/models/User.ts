@@ -10,6 +10,7 @@ export interface IUser extends Document {
     flatNumber?: string;
     phone?: string;
     isActive: boolean;
+    status: 'active' | 'inactive' | 'deleted';
     isVerified: boolean;
     themePreference: 'Light' | 'Dark' | 'Festival';
     comparePassword(candidatePassword: string): Promise<boolean>;
@@ -29,6 +30,7 @@ const UserSchema: Schema = new Schema(
         flatNumber: { type: String },
         phone: { type: String },
         isActive: { type: Boolean, default: true },
+        status: { type: String, enum: ['active', 'inactive', 'deleted'], default: 'active' },
         isVerified: { type: Boolean, default: false },
         themePreference: {
             type: String,

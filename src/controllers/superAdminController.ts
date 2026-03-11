@@ -101,12 +101,66 @@ export const addSocietyAdmin = async (req: Request, res: Response): Promise<void
 // @access  Private/SuperAdmin
 export const getAllAdmins = async (req: Request, res: Response): Promise<void> => {
     try {
-        const admins = await User.find({ role: 'ADMIN' })
+        const admins = await User.find({ role: 'ADMIN', status: { $ne: 'deleted' } })
             .populate('society', 'name city')
             .select('-password')
             .sort({ createdAt: -1 });
 
         res.status(200).json(admins);
+    } catch (error: any) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Block or Activate Admin
+// @route   PATCH /api/super-admin/admins/:id/status
+// @access  Private/SuperAdmin
+export const toggleAdminStatus = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { id } = req.params;
+        const user = await User.findById(id);
+
+        if (!user) {
+            res.status(404).json({ message: 'Admin not found' });
+            return;
+        }
+
+        if (user.role !== 'ADMIN') {
+            res.status(400).json({ message: 'User is not an admin' });
+            return;
+        }
+
+        user.isActive = !user.isActive;
+        user.status = user.isActive ? 'active' : 'inactive';
+        await user.save();
+
+        res.status(200).json({
+            message: `Admin ${user.isActive ? 'activated' : 'blocked'} successfully`,
+            user,
+        });
+    } catch (error: any) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Soft Delete Admin
+// @route   DELETE /api/super-admin/admins/:id
+// @access  Private/SuperAdmin
+export const deleteAdmin = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { id } = req.params;
+        const user = await User.findById(id);
+
+        if (!user) {
+            res.status(404).json({ message: 'Admin not found' });
+            return;
+        }
+
+        user.status = 'deleted';
+        user.isActive = false; // Also deactivate
+        await user.save();
+
+        res.status(200).json({ message: 'Admin deleted successfully (soft delete)' });
     } catch (error: any) {
         res.status(500).json({ message: error.message });
     }
@@ -144,8 +198,8 @@ export const getAnalytics = async (req: Request, res: Response): Promise<void> =
     try {
         const totalSocieties = await Society.countDocuments();
         const activeSocieties = await Society.countDocuments({ isActive: true });
-        const totalAdmins = await User.countDocuments({ role: 'ADMIN' });
-        const totalUsers = await User.countDocuments({ role: 'USER' });
+        const totalAdmins = await User.countDocuments({ role: 'ADMIN', status: { $ne: 'deleted' } });
+        const totalUsers = await User.countDocuments({ role: 'USER', status: { $ne: 'deleted' } });
 
         // Placeholders for complaints/maintenance summaries
         // In reality, this would query Complaints and Maintenance models

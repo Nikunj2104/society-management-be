@@ -4,6 +4,8 @@ import {
     getAllSocieties,
     addSocietyAdmin,
     getAllAdmins,
+    toggleAdminStatus,
+    deleteAdmin,
     toggleSocietyStatus,
     getAnalytics
 } from '../controllers/superAdminController';
@@ -26,6 +28,9 @@ router.patch('/societies/:id/status', toggleSocietyStatus);
 router.route('/admins')
     .post(addSocietyAdmin)
     .get(getAllAdmins);
+
+router.patch('/admins/:id/status', toggleAdminStatus);
+router.delete('/admins/:id', deleteAdmin);
 
 // Analytics
 router.get('/analytics', getAnalytics);
