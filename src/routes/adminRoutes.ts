@@ -6,6 +6,7 @@ import {
     getAnnouncements, createAnnouncement, deleteAnnouncement,
     getEvents, createEvent, updateEvent, deleteEvent,
     getMaintenanceRecords, addMaintenanceRecord, markMaintenancePaid, sendMaintenanceReminder,
+    generateBulkMaintenance, remindBulkMaintenance,
     getComplaints, respondToComplaint,
     sendCustomEmail,
 } from '../controllers/adminController';
@@ -44,6 +45,8 @@ router.route('/events/:id')
 router.route('/maintenance')
     .get(getMaintenanceRecords)
     .post(addMaintenanceRecord);
+router.post('/maintenance/bulk-generate', generateBulkMaintenance);
+router.post('/maintenance/bulk-remind', remindBulkMaintenance);
 router.patch('/maintenance/:id/pay', markMaintenancePaid);
 router.post('/maintenance/:id/remind', sendMaintenanceReminder);
 

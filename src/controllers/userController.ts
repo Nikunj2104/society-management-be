@@ -4,6 +4,7 @@ import Complaint from '../models/Complaint';
 import Maintenance from '../models/Maintenance';
 import Announcement from '../models/Announcement';
 import Event from '../models/Event';
+import UserNotification from '../models/UserNotification';
 
 // ─── DASHBOARD ───────────────────────────────────────────────────────────────
 
@@ -94,6 +95,32 @@ export const getMyEvents = async (req: AuthRequest, res: Response): Promise<void
     try {
         const events = await Event.find({ society: req.user.society }).sort({ eventDate: 1 });
         res.status(200).json(events);
+    } catch (error: any) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// ─── NOTIFICATIONS ───────────────────────────────────────────────────────────
+
+export const getMyNotifications = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const notifications = await UserNotification.find({ user: req.user._id })
+            .sort({ createdAt: -1 })
+            .limit(50);
+        res.status(200).json(notifications);
+    } catch (error: any) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export const markNotificationRead = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const { id } = req.params;
+        await UserNotification.findOneAndUpdate(
+            { _id: id, user: req.user._id },
+            { isRead: true }
+        );
+        res.status(200).json({ message: 'Notification marked as read' });
     } catch (error: any) {
         res.status(500).json({ message: error.message });
     }

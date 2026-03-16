@@ -5,7 +5,9 @@ import Complaint from '../models/Complaint';
 import Maintenance from '../models/Maintenance';
 import Announcement from '../models/Announcement';
 import Event from '../models/Event';
+import UserNotification from '../models/UserNotification';
 import { sendEmail } from '../services/emailService';
+import { getIO } from '../socket';
 
 // ─── DASHBOARD ───────────────────────────────────────────────────────────────
 
@@ -103,10 +105,17 @@ export const updateResident = async (req: AuthRequest, res: Response): Promise<v
 export const deleteResident = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
         const { id } = req.params;
+        console.log(`🗑️ Deleting resident: ${id} for society: ${req.user.society}`);
         const resident = await User.findOneAndDelete({ _id: id, society: req.user.society, role: 'USER' });
-        if (!resident) { res.status(404).json({ message: 'Resident not found' }); return; }
+        if (!resident) {
+            console.log(`⚠️ Resident not found or already deleted: ${id}`);
+            res.status(404).json({ message: 'Resident not found' });
+            return;
+        }
+        console.log(`✅ Resident removed successfully: ${id}`);
         res.status(200).json({ message: 'Resident removed successfully' });
     } catch (error: any) {
+        console.error(`❌ Error deleting resident ${req.params.id}:`, error.message);
         res.status(500).json({ message: error.message });
     }
 };
@@ -133,16 +142,19 @@ export const createAnnouncement = async (req: AuthRequest, res: Response): Promi
             createdBy: req.user._id,
         });
 
-        // Email all residents
-        const residents = await User.find({ society: req.user.society, role: 'USER' }).select('email name');
-        for (const resident of residents) {
-            await sendEmail(
-                resident.email,
-                `Society Announcement: ${title}`,
-                content,
-                `<h3>${title}</h3><p>${content}</p>`
-            );
-        }
+        // Email all residents (non-blocking)
+        User.find({ society: req.user.society, role: 'USER' }).select('email name')
+            .then(residents => {
+                residents.forEach(resident => {
+                    sendEmail(
+                        resident.email,
+                        `Society Announcement: ${title}`,
+                        content,
+                        `<h3>${title}</h3><p>${content}</p>`
+                    ).catch(err => console.error(`Failed to send email to ${resident.email}:`, err));
+                });
+            })
+            .catch(err => console.error('Error fetching residents for email:', err));
 
         res.status(201).json(announcement);
     } catch (error: any) {
@@ -153,9 +165,16 @@ export const createAnnouncement = async (req: AuthRequest, res: Response): Promi
 export const deleteAnnouncement = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
         const { id } = req.params;
-        await Announcement.findOneAndDelete({ _id: id, society: req.user.society });
+        console.log(`🗑️ Deleting announcement: ${id} for society: ${req.user.society}`);
+        const deleted = await Announcement.findOneAndDelete({ _id: id, society: req.user.society });
+        if (!deleted) {
+            console.log(`⚠️ Announcement not found or already deleted: ${id}`);
+        } else {
+            console.log(`✅ Announcement deleted successfully: ${id}`);
+        }
         res.status(200).json({ message: 'Announcement deleted' });
     } catch (error: any) {
+        console.error(`❌ Error deleting announcement ${req.params.id}:`, error.message);
         res.status(500).json({ message: error.message });
     }
 };
@@ -203,9 +222,16 @@ export const updateEvent = async (req: AuthRequest, res: Response): Promise<void
 export const deleteEvent = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
         const { id } = req.params;
-        await Event.findOneAndDelete({ _id: id, society: req.user.society });
+        console.log(`🗑️ Deleting event: ${id} for society: ${req.user.society}`);
+        const deleted = await Event.findOneAndDelete({ _id: id, society: req.user.society });
+        if (!deleted) {
+            console.log(`⚠️ Event not found or already deleted: ${id}`);
+        } else {
+            console.log(`✅ Event deleted successfully: ${id}`);
+        }
         res.status(200).json({ message: 'Event deleted' });
     } catch (error: any) {
+        console.error(`❌ Error deleting event ${req.params.id}:`, error.message);
         res.status(500).json({ message: error.message });
     }
 };
@@ -231,6 +257,19 @@ export const addMaintenanceRecord = async (req: AuthRequest, res: Response): Pro
             user: userId,
             amount, month, year, dueDate, description,
         });
+
+        // Send in-app notification
+        const notification = await UserNotification.create({
+            user: userId,
+            society: req.user.society,
+            title: 'Maintenance Bill Generated',
+            message: `Your maintenance bill for ${month} ${year} of ₹${amount} has been generated. Due date: ${new Date(dueDate).toDateString()}`,
+            type: 'maintenance',
+            relatedId: record._id
+        });
+
+        getIO().emit(`notification_${userId}`, notification);
+
         res.status(201).json(record);
     } catch (error: any) {
         res.status(500).json({ message: error.message });
@@ -258,6 +297,18 @@ export const markMaintenancePaid = async (req: AuthRequest, res: Response): Prom
             `<p>Dear ${userDoc.name},</p><p>Your maintenance of <b>₹${record.amount}</b> for <b>${record.month} ${record.year}</b> has been marked as paid via ${paymentMode}.</p>`
         );
 
+        // Send in-app notification
+        const notification = await UserNotification.create({
+            user: userDoc._id,
+            society: req.user.society,
+            title: 'Payment Confirmed',
+            message: `Your maintenance payment of ₹${record.amount} for ${record.month} ${record.year} has been confirmed.`,
+            type: 'maintenance',
+            relatedId: record._id
+        });
+
+        getIO().emit(`notification_${userDoc._id}`, notification);
+
         res.status(200).json({ message: 'Marked as paid', record });
     } catch (error: any) {
         res.status(500).json({ message: error.message });
@@ -278,7 +329,115 @@ export const sendMaintenanceReminder = async (req: AuthRequest, res: Response): 
             `<p>Dear ${record.user.name},</p><p>Your maintenance of <b>₹${record.amount}</b> for <b>${record.month} ${record.year}</b> is due on <b>${new Date(record.dueDate).toDateString()}</b>.</p><p>Please pay at the earliest.</p>`
         );
 
+        // Send in-app notification
+        const notification = await UserNotification.create({
+            user: record.user._id,
+            society: req.user.society,
+            title: 'Payment Reminder',
+            message: `Reminder: Maintenance of ₹${record.amount} for ${record.month} ${record.year} is due on ${new Date(record.dueDate).toDateString()}.`,
+            type: 'maintenance',
+            relatedId: record._id
+        });
+
+        getIO().emit(`notification_${record.user._id}`, notification);
+
         res.status(200).json({ message: 'Reminder sent successfully' });
+    } catch (error: any) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export const generateBulkMaintenance = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const { amount, month, year, dueDate, description } = req.body;
+        const societyId = req.user.society;
+
+        const residents = await User.find({ society: societyId, role: 'USER' });
+        
+        const records = await Promise.all(residents.map(async (resident) => {
+            // Check if record already exists for this resident, month, and year
+            const existing = await Maintenance.findOne({
+                user: resident._id,
+                month,
+                year,
+                society: societyId
+            });
+
+            if (existing) return null;
+
+            const record = await Maintenance.create({
+                society: societyId,
+                user: resident._id,
+                amount, month, year, dueDate, description,
+            });
+
+            // Notify via email (non-blocking)
+            sendEmail(
+                resident.email,
+                'Maintenance Bill Generated',
+                `Dear ${resident.name}, your maintenance bill for ${month} ${year} of ₹${amount} has been generated. Due date: ${new Date(dueDate).toDateString()}`,
+                `<p>Dear ${resident.name},</p><p>Your maintenance bill for <b>${month} ${year}</b> of <b>₹${amount}</b> has been generated.</p><p><b>Due Date:</b> ${new Date(dueDate).toDateString()}</p>`
+            ).catch(err => console.error('Bulk email failed:', err));
+
+            // In-app notification
+            const notification = await UserNotification.create({
+                user: resident._id,
+                society: societyId,
+                title: 'New Maintenance Bill',
+                message: `Maintenance bill for ${month} ${year} (₹${amount}) has been generated.`,
+                type: 'maintenance',
+                relatedId: record._id
+            });
+
+            getIO().emit(`notification_${resident._id}`, notification);
+
+            return record;
+        }));
+
+        const createdCount = records.filter(r => r !== null).length;
+
+        res.status(201).json({ 
+            message: `Maintenance generated for ${createdCount} residents.`,
+            count: createdCount 
+        });
+    } catch (error: any) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export const remindBulkMaintenance = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const societyId = req.user.society;
+        const unpaidRecords = await Maintenance.find({ 
+            society: societyId, 
+            isPaid: false 
+        }).populate('user', 'name email');
+
+        await Promise.all(unpaidRecords.map(async (record) => {
+            const user = record.user as any;
+            
+            // Email reminder
+            sendEmail(
+                user.email,
+                'Maintenance Payment Reminder',
+                `Dear ${user.name}, reminder for your maintenance of ₹${record.amount} for ${record.month} ${record.year}.`,
+                `<p>Dear ${user.name},</p><p>Reminder for your maintenance of <b>₹${record.amount}</b> for <b>${record.month} ${record.year}</b>.</p>`
+            ).catch(err => console.error('Bulk reminder email failed:', err));
+
+            // In-app notification
+            const notification = await UserNotification.create({
+                user: user._id,
+                society: societyId,
+                title: 'Payment Reminder',
+                message: `Quick reminder: Your maintenance for ${record.month} ${record.year} is still pending.`,
+                type: 'maintenance',
+                relatedId: record._id
+            });
+
+            getIO().emit(`notification_${user._id}`, notification);
+        }));
+
+        res.status(200).json({ message: `Reminders sent to ${unpaidRecords.length} residents.` });
     } catch (error: any) {
         res.status(500).json({ message: error.message });
     }

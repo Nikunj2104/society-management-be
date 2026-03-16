@@ -6,6 +6,7 @@ import {
     getMyMaintenance,
     getMyAnnouncements,
     getMyEvents,
+    getMyNotifications, markNotificationRead
 } from '../controllers/userController';
 
 const router = express.Router();
@@ -15,6 +16,10 @@ router.use(authorize('USER'));
 
 // Dashboard
 router.get('/dashboard', getUserDashboard);
+
+// Notifications
+router.get('/notifications', getMyNotifications);
+router.patch('/notifications/:id/read', markNotificationRead);
 
 // Complaints
 router.route('/complaints')
