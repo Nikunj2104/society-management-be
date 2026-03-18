@@ -13,6 +13,7 @@ export interface IUser extends Document {
     status: 'active' | 'inactive' | 'deleted';
     isVerified: boolean;
     themePreference: 'Light' | 'Dark' | 'Festival';
+    pushToken?: string;
     comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
@@ -36,7 +37,8 @@ const UserSchema: Schema = new Schema(
             type: String,
             enum: ['Light', 'Dark', 'Festival'],
             default: 'Light'
-        }
+        },
+        pushToken: { type: String }
     },
     { timestamps: true }
 );

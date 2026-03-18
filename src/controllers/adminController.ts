@@ -7,6 +7,7 @@ import Announcement from '../models/Announcement';
 import Event from '../models/Event';
 import UserNotification from '../models/UserNotification';
 import { sendEmail } from '../services/emailService';
+import { sendPushNotification } from '../services/notificationService';
 import { getIO } from '../socket';
 
 // ─── DASHBOARD ───────────────────────────────────────────────────────────────
@@ -270,6 +271,17 @@ export const addMaintenanceRecord = async (req: AuthRequest, res: Response): Pro
 
         getIO().emit(`notification_${userId}`, notification);
 
+        // Send Push Notification
+        const user = await User.findById(userId);
+        if (user && user.pushToken) {
+            sendPushNotification(
+                user.pushToken,
+                'Maintenance Bill Generated',
+                `Your maintenance bill for ${month} ${year} of ₹${amount} has been generated.`,
+                { type: 'maintenance', id: record._id }
+            ).catch(err => console.error('Push notification failed:', err));
+        }
+
         res.status(201).json(record);
     } catch (error: any) {
         res.status(500).json({ message: error.message });
@@ -309,6 +321,16 @@ export const markMaintenancePaid = async (req: AuthRequest, res: Response): Prom
 
         getIO().emit(`notification_${userDoc._id}`, notification);
 
+        // Send Push Notification
+        if (userDoc.pushToken) {
+            sendPushNotification(
+                userDoc.pushToken,
+                'Payment Confirmed',
+                `Your maintenance payment of ₹${record.amount} for ${record.month} ${record.year} has been confirmed.`,
+                { type: 'maintenance', id: record._id }
+            ).catch(err => console.error('Push notification failed:', err));
+        }
+
         res.status(200).json({ message: 'Marked as paid', record });
     } catch (error: any) {
         res.status(500).json({ message: error.message });
@@ -340,6 +362,16 @@ export const sendMaintenanceReminder = async (req: AuthRequest, res: Response): 
         });
 
         getIO().emit(`notification_${record.user._id}`, notification);
+
+        // Send Push Notification
+        if (record.user.pushToken) {
+            sendPushNotification(
+                record.user.pushToken,
+                'Payment Reminder',
+                `Reminder: Maintenance of ₹${record.amount} for ${record.month} ${record.year} is due on ${new Date(record.dueDate).toDateString()}.`,
+                { type: 'maintenance', id: record._id }
+            ).catch(err => console.error('Push notification failed:', err));
+        }
 
         res.status(200).json({ message: 'Reminder sent successfully' });
     } catch (error: any) {
@@ -391,6 +423,16 @@ export const generateBulkMaintenance = async (req: AuthRequest, res: Response): 
 
             getIO().emit(`notification_${resident._id}`, notification);
 
+            // Send Push Notification
+            if (resident.pushToken) {
+                sendPushNotification(
+                    resident.pushToken,
+                    'New Maintenance Bill',
+                    `Maintenance bill for ${month} ${year} (₹${amount}) has been generated.`,
+                    { type: 'maintenance', id: record._id }
+                ).catch(err => console.error('Push notification failed:', err));
+            }
+
             return record;
         }));
 
@@ -435,6 +477,16 @@ export const remindBulkMaintenance = async (req: AuthRequest, res: Response): Pr
             });
 
             getIO().emit(`notification_${user._id}`, notification);
+
+            // Send Push Notification
+            if (user.pushToken) {
+                sendPushNotification(
+                    user.pushToken,
+                    'Payment Reminder',
+                    `Quick reminder: Your maintenance for ${record.month} ${record.year} is still pending.`,
+                    { type: 'maintenance', id: record._id }
+                ).catch(err => console.error('Push notification failed:', err));
+            }
         }));
 
         res.status(200).json({ message: `Reminders sent to ${unpaidRecords.length} residents.` });

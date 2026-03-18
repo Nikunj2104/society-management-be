@@ -125,3 +125,18 @@ export const markNotificationRead = async (req: AuthRequest, res: Response): Pro
         res.status(500).json({ message: error.message });
     }
 };
+
+export const updatePushToken = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const { token } = req.body;
+        if (!token) {
+            res.status(400).json({ message: 'Push token is required' });
+            return;
+        }
+
+        await req.user.updateOne({ pushToken: token });
+        res.status(200).json({ message: 'Push token updated successfully' });
+    } catch (error: any) {
+        res.status(500).json({ message: error.message });
+    }
+};
