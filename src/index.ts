@@ -7,6 +7,14 @@ import mongoose from 'mongoose';
 import http from 'http';
 import { initSocket } from './socket';
 
+// Routes
+import authRoutes from './routes/authRoutes';
+import superAdminRoutes from './routes/superAdminRoutes';
+import adminRoutes from './routes/adminRoutes';
+import userRoutes from './routes/userRoutes';
+import notificationRoutes from './routes/notificationRoutes';
+import themeRoutes from './routes/themeRoutes';
+
 // Load env vars
 dotenv.config();
 
@@ -35,14 +43,6 @@ app.get('/', (req: Request, res: Response) => {
     res.send('Welcome to Society Management API');
 });
 
-// Routes
-import authRoutes from './routes/authRoutes';
-import superAdminRoutes from './routes/superAdminRoutes';
-import adminRoutes from './routes/adminRoutes';
-import userRoutes from './routes/userRoutes';
-import notificationRoutes from './routes/notificationRoutes';
-import themeRoutes from './routes/themeRoutes';
-
 app.use('/api/auth', authRoutes);
 app.use('/api/super-admin', superAdminRoutes);
 app.use('/api/admin', adminRoutes);
@@ -50,7 +50,13 @@ app.use('/api/user', userRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/themes', themeRoutes);
 
-// Start Server
-server.listen(port, () => {
-    console.log(`🚀 Server is running at http://localhost:${port}`);
-});
+// Start Server (only if not running on Vercel)
+if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+    server.listen(port, () => {
+        console.log(`🚀 Server is running at http://localhost:${port}`);
+    });
+} else {
+    console.log('✅ Running in Serverless/Vercel environment');
+}
+
+export default app;
