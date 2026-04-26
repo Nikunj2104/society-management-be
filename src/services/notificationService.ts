@@ -1,6 +1,18 @@
-import { Expo, ExpoPushMessage } from 'expo-server-sdk';
+import type { ExpoPushMessage, ExpoPushTicket } from 'expo-server-sdk';
 
-const expo = new Expo();
+let expoInstance: any;
+let ExpoModule: any;
+
+const getExpo = async () => {
+    if (!expoInstance) {
+        // Use a dynamic import to avoid ERR_REQUIRE_ESM in CommonJS environment.
+        // The Function constructor prevents TypeScript from transpiling this to require().
+        const module = await (new Function('return import("expo-server-sdk")')());
+        ExpoModule = module.Expo;
+        expoInstance = new ExpoModule();
+    }
+    return { expo: expoInstance, Expo: ExpoModule };
+};
 
 /**
  * Sends a push notification to one or more Expo push tokens.
@@ -14,7 +26,8 @@ export const sendPushNotification = async (
     title: string,
     body: string,
     data: Record<string, any> = {}
-) => {
+): Promise<ExpoPushTicket[]> => {
+    const { expo, Expo } = await getExpo();
     const pushTokens = Array.isArray(tokens) ? tokens : [tokens];
     const messages: ExpoPushMessage[] = [];
 
@@ -34,7 +47,7 @@ export const sendPushNotification = async (
     }
 
     const chunks = expo.chunkPushNotifications(messages);
-    const tickets = [];
+    const tickets: ExpoPushTicket[] = [];
 
     for (const chunk of chunks) {
         try {
@@ -47,3 +60,4 @@ export const sendPushNotification = async (
 
     return tickets;
 };
+
